@@ -35,3 +35,5 @@ class Booking(AbstractDateFieldMix):
     class Meta:
         verbose_name          = "Booking"
         verbose_name_plural   = "Bookings"
+
+

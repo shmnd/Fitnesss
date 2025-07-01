@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import FitnessClass, Booking
+import pytz
 
 class FitnessClassSerializer(serializers.ModelSerializer):
     id              = serializers.IntegerField(required=False, allow_null=True)
@@ -18,6 +19,8 @@ class FitnessClassSerializer(serializers.ModelSerializer):
 
 class BookingSerializer(serializers.ModelSerializer):
     class_id = serializers.IntegerField(write_only=True)
+    client_name   = serializers.CharField(required=True, allow_null=True, allow_blank=True)
+    client_email    = serializers.CharField(required=True, allow_null=True, allow_blank=True)
     
     class Meta:
         model = Booking
@@ -36,11 +39,14 @@ class BookingSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         fitness_class = FitnessClass.objects.get(id=validated_data['class_id'])
-        booking = Booking.objects.create(
+        instance = Booking.objects.create(
             fitness_class=fitness_class,
             client_name=validated_data['client_name'],
             client_email=validated_data['client_email']
         )
         fitness_class.available_slots -= 1
         fitness_class.save()
-        return booking
+        return instance
+    
+class TimezoneSerializer(serializers.Serializer):
+    timezone = serializers.ChoiceField(choices=[(tz, tz) for tz in pytz.all_timezones])

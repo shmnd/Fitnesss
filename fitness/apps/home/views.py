@@ -3,55 +3,81 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import FitnessClass, Booking
-from .serializers import FitnessClassSerializer, BookingSerializer
+from .serializers import FitnessClassSerializer, BookingSerializer,TimezoneSerializer
 from .schemas import BookingDropdownSchema,FitnessDropdownSchema
 from django.utils.timezone import activate
 from fitness_core.helpers.response import ResponseInfo
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.db.models import Q
+from fitness_core.helpers.helper import get_object_or_none
 
 logger = logging.getLogger(__name__)
 
-
-class BookClassView(APIView):
-    def post(self, request):
-        serializer = BookingSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            logger.info(f"Booking successful: {serializer.data}")
-            return Response({"message": "Booking successful"}, status=status.HTTP_201_CREATED)
-        logger.warning(f"Booking failed: {serializer.errors}")
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-    class BookClassApiView(generics.GenericAPIView):
-        def __init__(self, **kwargs):
-            self.response_format = ResponseInfo().response
-            super(BookClassApiView, self).__init__(**kwargs)
-            
-        serializer_class = BookingSerializer
+class BookClassApiView(generics.GenericAPIView):
+    def __init__(self, **kwargs):
+        self.response_format = ResponseInfo().response
+        super(BookClassApiView, self).__init__(**kwargs)
         
-        @swagger_auto_schema(tags=["Booking"])
-        def post(self, request):
+    serializer_class = BookingSerializer
+    
+    @swagger_auto_schema(tags=["Booking"])
+    def post(self, request):
+        try:
+            
+            instance    = get_object_or_none(FitnessClass,pk=request.data.get('id', None))
+            serializer  = self.serializer_class(instance, data=request.data, context = {'request' : request})
+            
+            if not serializer.is_valid():
+                self.response_format['status_code']   = status.HTTP_400_BAD_REQUEST
+                self.response_format["status"]        = False
+                self.response_format["errors"]        = serializer.errors
+                return Response(self.response_format, status=status.HTTP_400_BAD_REQUEST)
+            
+            serializer.save()
+            
+            self.response_format['status_code']   = status.HTTP_201_CREATED
+            self.response_format["message"]       = "success"
+            self.response_format["status"]        = True
+            return Response(self.response_format, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            self.response_format['status_code']   = status.HTTP_500_INTERNAL_SERVER_ERROR
+            self.response_format['status']        = False
+            self.response_format['message']       = f'exc_type : {exc_type},fname : {fname},tb_lineno : {exc_tb.tb_lineno},error : {str(e)}'
+            return Response(self.response_format, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+
+class TimezoneSwitchView(generics.GenericAPIView):
+    def __init__(self, **kwargs):
+        self.response_format = ResponseInfo().response
+        super(TimezoneSwitchView, self).__init__(**kwargs)
+        
+    serializer_class = TimezoneSerializer
+    
+    @swagger_auto_schema(tags=["Time zone"])
+    def post(self, request):
+        try:
+            
+            serializer = TimezoneSerializer(data=request.data)
+            
+            if not serializer.is_valid():
+                self.response_format['status_code']   = status.HTTP_400_BAD_REQUEST
+                self.response_format["status"]        = False
+                self.response_format["errors"]        = serializer.errors
+                return Response(self.response_format, status=status.HTTP_400_BAD_REQUEST)
+            
+            tz = serializer.validated_data['timezone']
             try:
-                
-                instance    = get_object_or_none(Category,pk=request.data.get('id', None))
-                serializer  = self.serializer_class(instance, data=request.data, context = {'request' : request})
-                
-                if not serializer.is_valid():
-                    self.response_format['status_code']   = status.HTTP_400_BAD_REQUEST
-                    self.response_format["status"]        = False
-                    self.response_format["errors"]        = serializer.errors
-                    return Response(self.response_format, status=status.HTTP_400_BAD_REQUEST)
-                
-                serializer.save()
-                
+                activate(pytz.timezone(tz))
+                for cls in FitnessClass.objects.all():
+                    cls.datetime = cls.datetime.astimezone(pytz.timezone(tz))
+                    cls.save()
                 self.response_format['status_code']   = status.HTTP_201_CREATED
-                self.response_format["message"]       = _success
+                self.response_format["message"]       = "success"
                 self.response_format["status"]        = True
                 return Response(self.response_format, status=status.HTTP_201_CREATED)
-                
             except Exception as e:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -59,20 +85,15 @@ class BookClassView(APIView):
                 self.response_format['status']        = False
                 self.response_format['message']       = f'exc_type : {exc_type},fname : {fname},tb_lineno : {exc_tb.tb_lineno},error : {str(e)}'
                 return Response(self.response_format, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
-
-
-class TimezoneSwitchView(APIView):
-    def post(self, request):
-        tz = request.data.get('timezone')
-        try:
-            activate(pytz.timezone(tz))
-            for cls in FitnessClass.objects.all():
-                cls.datetime = cls.datetime.astimezone(pytz.timezone(tz))
-                cls.save()
-            return Response({"message": f"Timezone updated to {tz}"})
+            
         except Exception as e:
-            return Response({"error": str(e)}, status=400)
-        
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            self.response_format['status_code']   = status.HTTP_500_INTERNAL_SERVER_ERROR
+            self.response_format['status']        = False
+            self.response_format['message']       = f'exc_type : {exc_type},fname : {fname},tb_lineno : {exc_tb.tb_lineno},error : {str(e)}'
+            return Response(self.response_format, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+
 
 
 class FitnessListApiView(generics.ListAPIView):
