@@ -5,7 +5,7 @@ import pytz
 class FitnessClassSerializer(serializers.ModelSerializer):
     id              = serializers.IntegerField(required=False, allow_null=True)
     fitness_name    = serializers.CharField(required=True, allow_null=True, allow_blank=True)
-    description     = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    datetime     = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     instructor      = serializers.CharField(required=True, allow_null=True, allow_blank=True)
     total_slots     = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     available_slots = serializers.CharField(required=False, allow_null=True, allow_blank=True)
@@ -14,7 +14,7 @@ class FitnessClassSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FitnessClass
-        fields  = ['id', 'fitness_name', 'description', 'instructor','total_slots','available_slots']
+        fields = ['id', 'fitness_name', 'datetime', 'instructor',"total_slots", 'available_slots']
 
 
 class BookingSerializer(serializers.ModelSerializer):
@@ -48,5 +48,8 @@ class BookingSerializer(serializers.ModelSerializer):
         fitness_class.save()
         return instance
     
-class TimezoneSerializer(serializers.Serializer):
-    timezone = serializers.ChoiceField(choices=[(tz, tz) for tz in pytz.all_timezones])
+class TimezoneInputSerializer(serializers.Serializer):
+    timezone = serializers.ChoiceField(
+        choices=[(tz, tz) for tz in pytz.all_timezones],
+        help_text="Valid timezone name (e.g., 'Asia/Kolkata', 'Pacific/Auckland')"
+    )

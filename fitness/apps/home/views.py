@@ -3,7 +3,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import FitnessClass, Booking
-from .serializers import FitnessClassSerializer, BookingSerializer,TimezoneSerializer
+from .serializers import FitnessClassSerializer, BookingSerializer,TimezoneInputSerializer
 from .schemas import BookingDropdownSchema,FitnessDropdownSchema
 from django.utils.timezone import activate
 from fitness_core.helpers.response import ResponseInfo
@@ -11,6 +11,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.db.models import Q
 from fitness_core.helpers.helper import get_object_or_none
+from django.utils.timezone import is_aware
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +55,11 @@ class TimezoneSwitchView(generics.GenericAPIView):
         self.response_format = ResponseInfo().response
         super(TimezoneSwitchView, self).__init__(**kwargs)
         
-    serializer_class = TimezoneSerializer
+    serializer_class = TimezoneInputSerializer
     
     @swagger_auto_schema(tags=["Time zone"])
     def post(self, request):
-        try:
-            
-            serializer = TimezoneSerializer(data=request.data)
+            serializer = self.serializer_class(data=request.data, context = {'request' : request})
             
             if not serializer.is_valid():
                 self.response_format['status_code']   = status.HTTP_400_BAD_REQUEST
@@ -69,15 +68,24 @@ class TimezoneSwitchView(generics.GenericAPIView):
                 return Response(self.response_format, status=status.HTTP_400_BAD_REQUEST)
             
             tz = serializer.validated_data['timezone']
+            target_tz = pytz.timezone(tz)
             try:
-                activate(pytz.timezone(tz))
+                # Loop through all classes
                 for cls in FitnessClass.objects.all():
-                    cls.datetime = cls.datetime.astimezone(pytz.timezone(tz))
+                    dt = cls.datetime
+
+                    # Remove current timezone info completely
+                    naive_dt = dt.replace(tzinfo=None)
+
+                    # Re-apply the new timezone with same time
+                    cls.datetime = target_tz.localize(naive_dt)
+                    print(f"Updated datetime for {cls}: {cls.datetime}")
                     cls.save()
-                self.response_format['status_code']   = status.HTTP_201_CREATED
-                self.response_format["message"]       = "success"
-                self.response_format["status"]        = True
-                return Response(self.response_format, status=status.HTTP_201_CREATED)
+
+                self.response_format['status_code'] = status.HTTP_200_OK
+                self.response_format["message"] = f"All class times updated to {tz}"
+                return Response(self.response_format, status=status.HTTP_200_OK)
+            
             except Exception as e:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -86,13 +94,6 @@ class TimezoneSwitchView(generics.GenericAPIView):
                 self.response_format['message']       = f'exc_type : {exc_type},fname : {fname},tb_lineno : {exc_tb.tb_lineno},error : {str(e)}'
                 return Response(self.response_format, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
             
-        except Exception as e:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            self.response_format['status_code']   = status.HTTP_500_INTERNAL_SERVER_ERROR
-            self.response_format['status']        = False
-            self.response_format['message']       = f'exc_type : {exc_type},fname : {fname},tb_lineno : {exc_tb.tb_lineno},error : {str(e)}'
-            return Response(self.response_format, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 
 
