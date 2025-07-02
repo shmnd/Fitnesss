@@ -36,3 +36,31 @@ python manage.py test
 
 https://api-team-2891.postman.co/workspace/api-team-Workspace~359a76be-19b7-4be6-86c3-ce4feb78a0b1/collection/32061364-70d03f1a-d29b-422b-a882-20dde17bdf49?action=share&source=copy-link&creator=32061364
 
+One by One 
+
+Booked details list 
+http://127.0.0.1:8000/api/home/home/bookings-listing/
+
+Fitness Class details list 
+http://127.0.0.1:8000/api/home/home/list-classes/?search_param=hiit
+
+booking process
+http://127.0.0.1:8000/api/home/home/booking-process/
+sample data
+
+{
+  "class_id": 2,
+  "client_name": "babu",
+  "client_email": "babu@gmail.com"
+}
+
+time zone change api 
+http://127.0.0.1:8000/api/home/home/switch-timezone/
+sample data
+
+{
+  "timezone": "America/New_York"
+}
+
+
+
